@@ -25,3 +25,7 @@ jobs:
       - name: Vallidate Python Syntax
         run: |
           python -m compileall app
+      
+      - name: Run Tests
+        run: |
+          PYTHONPATH=. pytest v
