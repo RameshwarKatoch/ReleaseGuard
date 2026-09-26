@@ -88,7 +88,8 @@ def create_release(release:ReleaseCreate,db:Session=Depends(get_db)):
         version = release.version,
         environment = release.environment,
         deployment_status = release.deployment_status,
-        health_status = release.health_status
+        health_status = release.health_status,
+        commit_sha = release.commit_sha
     )
     db.add(new_release)
     db.commit()
@@ -99,3 +100,12 @@ def create_release(release:ReleaseCreate,db:Session=Depends(get_db)):
 def get_releases(db: Session = Depends(get_db)):
     releases = db.query(Release).all()
     return releases
+
+@app.get("/releases/{release_id}")
+def get_release(release_id: int, db: Session = Depends(get_db)):
+    release = db.query(Release).filter(Release.id == release_id).first()
+
+    if not release:
+        raise HTTPException(status_code=404, detail="Release not found")
+
+    return release

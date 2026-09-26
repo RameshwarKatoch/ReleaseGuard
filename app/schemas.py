@@ -15,3 +15,4 @@ class ReleaseCreate(BaseModel):
     environment: str
     deployment_status: str
     health_status: str
+    commit_sha: str

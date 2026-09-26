@@ -87,3 +87,52 @@ def test_create_order():
     assert data["quantity"] == 1
     assert data["status"] == "PENDING"
     assert "id" in data
+
+def test_create_release():
+    payload = {
+        "version": "1.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "HEALTHY",
+        "commit_sha": "a7f3c92"
+    }
+
+    response = client.post("/release", json=payload)
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["version"] == "1.0.0"
+    assert data["environment"] == "production"
+    assert data["deployment_status"] == "SUCCESS"
+    assert data["health_status"] == "HEALTHY"
+    assert data["commit_sha"] == "a7f3c92"
+    assert "id" in data
+
+def test_get_release():
+    payload = {
+        "version": "2.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "HEALTHY",
+        "commit_sha": "b82d1f4"
+    }
+
+    create_response = client.post("/release", json=payload)
+
+    release_id = create_response.json()["id"]
+
+    response = client.get(f"/releases/{release_id}")
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "2.0.0"
+    assert response.json()["commit_sha"] == "b82d1f4"
+
+
+def test_get_nonexistent_release():
+    response = client.get("/releases/9999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Release not found"}
+
