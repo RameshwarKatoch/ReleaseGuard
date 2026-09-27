@@ -109,3 +109,27 @@ def get_release(release_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Release not found")
 
     return release
+
+@app.get("/releases/{release_id}/previous-healthy")
+def get_previous_healthy_release(release_id: int,db: Session = Depends(get_db)):
+    current_release = db.query(Release).filter(Release.id == release_id).first()
+
+    if not current_release:
+        raise HTTPException(
+            status_code=404,
+            detail="Release not found"
+        )
+
+    previous_release = db.query(Release).filter(
+        Release.environment == current_release.environment,
+        Release.health_status == "HEALTHY",
+        Release.id < current_release.id
+    ).order_by(Release.id.desc()).first()
+
+    if not previous_release:
+        raise HTTPException(
+            status_code=404,
+            detail="No previous healthy release found"
+        )
+
+    return previous_release

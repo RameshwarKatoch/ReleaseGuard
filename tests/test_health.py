@@ -136,3 +136,33 @@ def test_get_nonexistent_release():
     assert response.status_code == 404
     assert response.json() == {"detail": "Release not found"}
 
+def test_previous_healthy_release():
+    payload = {
+        "version": "1.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "HEALTHY",
+        "commit_sha": "a7f3c92"
+    }
+
+    create_response = client.post("/release", json=payload)
+    release1_id = create_response.json()["id"]
+
+    payload2 = {
+        "version": "2.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "UNHEALTHY",
+        "commit_sha": "b82d1f4"
+    }
+    response2 = client.post("/release", json=payload2)
+    release2_id = response2.json()["id"]  
+
+    response = client.get(
+        f"/releases/{release2_id}/previous-healthy"
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == release1_id
+    assert response.json()["version"] == "1.0.0"
+    assert response.json()["health_status"] == "HEALTHY"
+    assert response.json()["commit_sha"] == "a7f3c92"
