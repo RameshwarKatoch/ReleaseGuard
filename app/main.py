@@ -133,3 +133,38 @@ def get_previous_healthy_release(release_id: int,db: Session = Depends(get_db)):
         )
 
     return previous_release
+
+@app.get("/releases/{release_id}/rollback-target")
+def get_rollback_target(release_id: int,db: Session = Depends(get_db)):
+    current_release = db.query(Release).filter(Release.id == release_id).first()
+
+    if not current_release:
+        raise HTTPException(
+            status_code=404,
+            detail="Release not found"
+        )
+
+    if current_release.health_status == "HEALTHY":
+        return {
+            "message": "Rollback not required",
+            "release_id": current_release.id
+        }
+
+    previous_release = db.query(Release).filter(
+        Release.environment == current_release.environment,
+        Release.health_status == "HEALTHY",
+        Release.id < current_release.id
+    ).order_by(Release.id.desc()).first()
+
+    if not previous_release:
+        raise HTTPException(
+            status_code=404,
+            detail="No rollback target found"
+        )
+
+    return {
+        "message": "Rollback required",
+        "rollback_to_release_id": previous_release.id,
+        "version": previous_release.version,
+        "commit_sha": previous_release.commit_sha
+    }

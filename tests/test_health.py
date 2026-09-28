@@ -1,3 +1,4 @@
+from starlette import responses
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,7 +7,6 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.database import get_db
 from app.models import Base
-
 
 # Test database: SQLite in memory
 TEST_DATABASE_URL = "sqlite://"
@@ -55,26 +55,18 @@ def test_root_endpoint():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "message": "This is the Release Guard"
-    }
+    assert response.json() == {"message": "This is the Release Guard"}
 
 
 def test_version_endpoint():
     response = client.get("/version")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "version": "0.0.1"
-    }
+    assert response.json() == {"version": "0.0.1"}
 
 
 def test_create_order():
-    payload = {
-        "customer_name": "Rameshwar",
-        "item": "Laptop",
-        "quantity": 1
-    }
+    payload = {"customer_name": "Rameshwar", "item": "Laptop", "quantity": 1}
 
     response = client.post("/order", json=payload)
 
@@ -88,13 +80,14 @@ def test_create_order():
     assert data["status"] == "PENDING"
     assert "id" in data
 
+
 def test_create_release():
     payload = {
         "version": "1.0.0",
         "environment": "production",
         "deployment_status": "SUCCESS",
         "health_status": "HEALTHY",
-        "commit_sha": "a7f3c92"
+        "commit_sha": "a7f3c92",
     }
 
     response = client.post("/release", json=payload)
@@ -110,13 +103,14 @@ def test_create_release():
     assert data["commit_sha"] == "a7f3c92"
     assert "id" in data
 
+
 def test_get_release():
     payload = {
         "version": "2.0.0",
         "environment": "production",
         "deployment_status": "SUCCESS",
         "health_status": "HEALTHY",
-        "commit_sha": "b82d1f4"
+        "commit_sha": "b82d1f4",
     }
 
     create_response = client.post("/release", json=payload)
@@ -136,13 +130,14 @@ def test_get_nonexistent_release():
     assert response.status_code == 404
     assert response.json() == {"detail": "Release not found"}
 
+
 def test_previous_healthy_release():
     payload = {
         "version": "1.0.0",
         "environment": "production",
         "deployment_status": "SUCCESS",
         "health_status": "HEALTHY",
-        "commit_sha": "a7f3c92"
+        "commit_sha": "a7f3c92",
     }
 
     create_response = client.post("/release", json=payload)
@@ -153,16 +148,43 @@ def test_previous_healthy_release():
         "environment": "production",
         "deployment_status": "SUCCESS",
         "health_status": "UNHEALTHY",
-        "commit_sha": "b82d1f4"
+        "commit_sha": "b82d1f4",
     }
     response2 = client.post("/release", json=payload2)
-    release2_id = response2.json()["id"]  
+    release2_id = response2.json()["id"]
 
-    response = client.get(
-        f"/releases/{release2_id}/previous-healthy"
-    )
+    response = client.get(f"/releases/{release2_id}/previous-healthy")
     assert response.status_code == 200
     assert response.json()["id"] == release1_id
     assert response.json()["version"] == "1.0.0"
     assert response.json()["health_status"] == "HEALTHY"
+    assert response.json()["commit_sha"] == "a7f3c92"
+
+
+def test_rollback_target():
+    payload = {
+        "version": "1.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "HEALTHY",
+        "commit_sha": "a7f3c92",
+    }
+    create_response = client.post("/release", json=payload)
+    healthy_release = create_response.json()["id"]
+
+    payload2 = {
+        "version": "2.0.0",
+        "environment": "production",
+        "deployment_status": "SUCCESS",
+        "health_status": "UNHEALTHY",
+        "commit_sha": "b82d1f4",
+    }
+    response2 = client.post("/release", json=payload2)
+    unhealthy_release = response2.json()["id"]
+
+    response = client.get(f"/releases/{unhealthy_release}/rollback-target")
+
+    assert response.status_code == 200
+    assert response.json()["rollback_to_release_id"] == healthy_release
+    assert response.json()["version"] == "1.0.0"
     assert response.json()["commit_sha"] == "a7f3c92"
