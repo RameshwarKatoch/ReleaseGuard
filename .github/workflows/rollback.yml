@@ -1,0 +1,24 @@
+name: ReleaseGuard Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to deploy"
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout rollback commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+
+      - name: Show rollback commit
+        run: |
+          echo "Rolling back to commit:"
+          git rev-parse HEAD
