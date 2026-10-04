@@ -11,3 +11,4 @@ class Release(Base):
     deployment_status = Column(String)
     health_status = Column(String)
     commit_sha = Column(String)
+    rollback_status = Column(String, nullable=True)
