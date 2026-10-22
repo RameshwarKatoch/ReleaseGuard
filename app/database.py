@@ -1,7 +1,11 @@
-from sqlalchemy import engine,create_engine
+import os
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "postgresql://rameshwarkatoch@localhost:5432/orderflow"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://rameshwarkatoch@localhost:5432/orderflow"
+)
 
 engine = create_engine(DATABASE_URL)
 
@@ -13,5 +17,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-

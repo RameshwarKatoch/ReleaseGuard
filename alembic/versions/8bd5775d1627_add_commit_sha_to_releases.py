@@ -1,7 +1,7 @@
 """add commit sha to releases
 
 Revision ID: 8bd5775d1627
-Revises: 
+Revises: 0a1b2c3d4e5f
 Create Date: 2026-09-16 16:39:00.328155
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '8bd5775d1627'
-down_revision: Union[str, Sequence[str], None] = None
+down_revision: Union[str, Sequence[str], None] = '0a1b2c3d4e5f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

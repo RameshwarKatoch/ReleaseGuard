@@ -22,10 +22,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Vallidate Python Syntax
+      - name: Validate Python Syntax
         run: |
           python -m compileall app
       
       - name: Run Tests
         run: |
-          PYTHONPATH=. pytest v
+          PYTHONPATH=. pytest 

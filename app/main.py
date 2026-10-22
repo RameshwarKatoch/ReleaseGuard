@@ -5,7 +5,7 @@ from app import database
 from app import database
 from app import release
 from sqlalchemy import delete
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import get_db
 from app.schemas import OrderCreate ,OrderUpdate,ReleaseCreate
 from fastapi import FastAPI, Depends,HTTPException
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Order
 from app.release import Release
+from app.rollback_history import RollbackHistory
 from app.health_check import check_health
 from app.deployment import (
     trigger_deployment,
@@ -264,6 +265,70 @@ def check_release_health(
         "health_status": release.health_status
     }
 
+@app.post("/releases/{release_id}/deploy")
+def deploy_release(
+    release_id: int,
+    db: Session = Depends(get_db)
+):
+    release = db.query(Release).filter(
+        Release.id == release_id
+    ).first()
+
+    if not release:
+        raise HTTPException(
+            status_code=404,
+            detail="Release not found"
+        )
+
+    release.deployment_status = "IN_PROGRESS"
+    db.commit()
+    db.refresh(release)
+
+    deployment_started = trigger_deployment(
+        release.commit_sha
+    )
+
+    if not deployment_started:
+        release.deployment_status = "FAILED"
+        db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Deployment failed to start"
+        )
+
+    run_id = wait_for_rollback_run()
+
+    if run_id is None:
+        release.deployment_status = "FAILED"
+        db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Deployment workflow run not found"
+        )
+
+    deployment_success = wait_for_rollback_completion(run_id)
+
+    if not deployment_success:
+        release.deployment_status = "FAILED"
+        db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Deployment workflow failed"
+        )
+
+    release.deployment_status = "SUCCESS"
+    db.commit()
+    db.refresh(release)
+
+    return {
+        "message": "Deployment completed",
+        "release_id": release.id,
+        "deployment_status": release.deployment_status
+    }
+
 @app.post("/releases/{release_id}/auto-rollback")
 def auto_rollback(
     release_id: int,
@@ -311,7 +376,17 @@ def auto_rollback(
 
     # Rollback has been requested
     release.rollback_status = "ROLLBACK_REQUESTED"
+
+    rollback_history = RollbackHistory(
+        release_id=release.id,
+        target_release_id=previous_release.id,
+        target_commit_sha=previous_release.commit_sha,
+        status="ROLLBACK_REQUESTED"
+    )
+
+    db.add(rollback_history)
     db.commit()
+    db.refresh(rollback_history)
 
     deployment_started = trigger_deployment(
         previous_release.commit_sha
@@ -319,6 +394,8 @@ def auto_rollback(
 
     if not deployment_started:
         release.rollback_status = "ROLLBACK_FAILED"
+        rollback_history.status = "ROLLBACK_FAILED"
+        rollback_history.completed_at = datetime.now(timezone.utc)
         db.commit()
 
         raise HTTPException(
@@ -328,12 +405,15 @@ def auto_rollback(
 
     # GitHub accepted the rollback request
     release.rollback_status = "ROLLBACK_IN_PROGRESS"
+    rollback_history.status = "ROLLBACK_IN_PROGRESS"
     db.commit()
 
     run_id = wait_for_rollback_run()
 
     if run_id is None:
         release.rollback_status = "ROLLBACK_FAILED"
+        rollback_history.status = "ROLLBACK_FAILED"
+        rollback_history.completed_at = datetime.now(timezone.utc)
         db.commit()
 
         raise HTTPException(
@@ -345,6 +425,8 @@ def auto_rollback(
 
     if not rollback_success:
         release.rollback_status = "ROLLBACK_FAILED"
+        rollback_history.status = "ROLLBACK_FAILED"
+        rollback_history.completed_at = datetime.now(timezone.utc)
         db.commit()
 
         raise HTTPException(
@@ -357,6 +439,8 @@ def auto_rollback(
 
     if not is_healthy_after_rollback:
         release.rollback_status = "ROLLBACK_FAILED"
+        rollback_history.status = "ROLLBACK_FAILED"
+        rollback_history.completed_at = datetime.now(timezone.utc)
         db.commit()
 
         raise HTTPException(
@@ -366,6 +450,8 @@ def auto_rollback(
 
     release.rollback_status = "ROLLED_BACK"
     release.health_status = "HEALTHY"
+    rollback_history.status = "ROLLED_BACK"
+    rollback_history.completed_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(release)
