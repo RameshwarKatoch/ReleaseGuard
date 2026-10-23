@@ -13,6 +13,7 @@ from app.release import Release
 from app.rollback_history import RollbackHistory
 from unittest.mock import patch
 import requests
+import os
 from app.deployment import trigger_deployment, get_latest_rollback_run ,get_workflow_run_status
 
 # Test database: SQLite in memor
@@ -45,6 +46,11 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
+
+HEALTH_URL = os.getenv(
+    "TEST_HEALTH_URL",
+    "http://localhost:8000/health"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -287,7 +293,7 @@ def test_rollback_when_no_target_exists():
     }
 
 def test_check_health_success():
-    result = check_health("http://localhost:8000/health")
+    result = check_health(HEALTH_URL)
 
     assert result is True
 
@@ -310,7 +316,7 @@ def test_check_health_server_unreachable():
 def test_check_application_health():
     response = client.get(
         "/check-health",
-        params={"url": "http://localhost:8000/health"}
+        params={"url": HEALTH_URL}
     )
 
     assert response.status_code == 200
