@@ -293,9 +293,12 @@ def test_rollback_when_no_target_exists():
     }
 
 def test_check_health_success():
-    result = check_health(HEALTH_URL)
+    with patch("app.health_check.requests.get") as mock_get:
+        mock_get.return_value.status_code = 200
 
-    assert result is True
+        result = check_health("http://fake-url/health")
+
+        assert result is True
 
 def test_check_health_failure():
     with patch("app.health_check.requests.get") as mock_get:
@@ -314,15 +317,18 @@ def test_check_health_server_unreachable():
         assert result is False
 
 def test_check_application_health():
-    response = client.get(
-        "/check-health",
-        params={"url": HEALTH_URL}
-    )
+    with patch("app.main.check_health") as mock_check_health:
+        mock_check_health.return_value = True
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "HEALTHY"
-    }
+        response = client.get(
+            "/check-health",
+            params={"url": "http://fake-url/health"}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "HEALTHY"
+        }
 
 def test_check_application_health_healthy():
     with patch("app.main.check_health") as mock_check:
