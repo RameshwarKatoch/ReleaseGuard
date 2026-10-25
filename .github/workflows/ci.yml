@@ -29,3 +29,7 @@ jobs:
       - name: Run Tests
         run: |
           PYTHONPATH=. pytest 
+
+      - name: Build Docker Image
+        run: |
+          docker build -t releaseguard:ci .
